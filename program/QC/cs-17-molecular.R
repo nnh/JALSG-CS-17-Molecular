@@ -7,6 +7,8 @@ rm(list=ls())
 library("stringr")
 library("dplyr")
 library("here")
+output_path <- format(Sys.Date(), "%Y%m%d") %>% str_c("CS-17-Molecular定期報告_", ., ".xlsx") %>%
+  here("output", "QC", .)
 library("openxlsx")
 # ------ constant ------
 kCS_17 <- "CS_17"
@@ -52,8 +54,6 @@ AddStyleTable2 <- function(output_wb, target_sheet_name, target_row, border_styl
 }
 # ------ init ------
 parent_path <- "/Volumes/Stat/Trials/JAGSE/CS-17-Molecular_interim"
-output_path <- format(Sys.Date(), "%Y%m%d") %>% str_c("CS-17-Molecular定期報告_", ., ".xlsx") %>%
-                here("output", "QC", .)
 # read csv
 file_list <- str_c(parent_path, "/input/rawdata") %>% list.files(full.names=T)
 registration_list <- str_subset(file_list, pattern="([^/]+)(?=_[0-9]{6}_[0-9]{4}.csv)")
@@ -62,21 +62,25 @@ registration_list %>% ReadCsvFiles("cp932")
 exclude_registration_list %>% ReadCsvFiles("utf-8")
 str_c(parent_path, "/input/ext/diseases.csv") %>% ReadCsvFiles("utf-8")
 str_c(parent_path, "/input/ext/facilities.csv") %>% ReadCsvFiles("cp932")
-# ------ Table 1 ------
-DM <- raw_DM
-DM$str_SITEID <- formatC(DM$SITEID, width=9, flag="0")
-DM <- DM %>% left_join(raw_facilities, by=c("str_SITEID"="施設コード"))
-table1 <- summarise(group_by(DM, 施設名.ja.), number_of_cases=n())
-table1 <- rbind(table1, c("合計", sum(table1$number_of_cases)))
-# ------ Table 2 ------
+# ------ common processing ------
 local({
-  df_registration <- get(kCS_17) %>% select(c(症例登録番号, 登録コード))
-  df_molecular <- get(kCS_17_Molecular) %>% select("登録コード") %>% right_join(df_registration, by=c("登録コード"))
-  table2 <<- DM[, c("SUBJID", "USUBJID", "BRTHDTC", "SEX", "施設名.ja.")] %>%
-               left_join(df_registration, by=c("SUBJID"="症例登録番号")) %>%
-                   left_join(df_molecular, by="登録コード")
+  target_cs_17 <- get(kCS_17) %>% select(c(cs_17_subjid=症例登録番号, 登録コード))
+  target_molecular <- get(kCS_17_Molecular) %>% select(c(molecular_subjid=症例登録番号, 登録コード))
+  # CS-17とmolecularを登録コードで結合
+  molecular_registration <- target_molecular %>% inner_join(target_cs_17, by="登録コード")
+  DM <- raw_DM
+  DM$str_SITEID <- formatC(DM$SITEID, width=9, flag="0")
+  DM <- DM %>% left_join(raw_facilities, by=c("str_SITEID"="施設コード"))
+  DM <<- DM[, c("SUBJID", "USUBJID", "BRTHDTC", "SEX", "施設名.ja.")] %>%
+    inner_join(molecular_registration, by=c("SUBJID"="cs_17_subjid"))
 })
-table2 <- raw_MH %>% select(c(USUBJID, MHDTC)) %>% filter(MHDTC != "") %>% inner_join(table2, by="USUBJID")
+# ------ Table 1 ------
+table1 <- summarise(group_by(DM, 施設名.ja.), number_of_cases=n()) %>%
+            arrange(desc(number_of_cases), 施設名.ja.)
+table1 <- rbind(table1, c("合計", sum(as.numeric(table1$number_of_cases))))
+# 症例数で降順に出力、同数の場合は、医療機関名で昇順
+# ------ Table 2 ------
+table2 <- raw_MH %>% select(c(USUBJID, MHDTC)) %>% filter(MHDTC != "") %>% inner_join(DM, by="USUBJID")
 table2$age <- apply(table2, 1, function(x){return(length(seq(as.Date(x["BRTHDTC"]), as.Date(x["MHDTC"]), "year")) - 1)})
 table2$str_sex <- ifelse(table2$SEX == 0, "M", "F")
 MH <- raw_MH %>% select(c(USUBJID, MHTERM, MHCAT, MHDTC)) %>% filter(MHCAT=="PRIMARY DIAGNOSIS")
@@ -91,7 +95,7 @@ epoch_order <- data.frame(c(1, 2, 3),
                           c("寛解導入療法", "地固め療法・維持療法", "サルベージ療法"),
                           stringsAsFactors=F)
 colnames(epoch_order) <- c("epoch_order", "EPOCH", "epoch_ja")
-table2 <- raw_EC %>% left_join(epoch_order, by="EPOCH") %>%
+table2 <- raw_EC %>% filter(ECTRT != "Not Done") %>% left_join(epoch_order, by="EPOCH") %>%
             select(c(USUBJID, EPOCH, ECTPT, ECTRT, epoch_order, epoch_ja, ECSPID)) %>% right_join(table2, by="USUBJID")
 ectpt_label <- data.frame(c("COURSE 1", "COURSE 2", "COURSE 3", "COURSE 4"),
                           c("1コース", "2コース", "3コース", "4コース"), stringsAsFactors=F)
@@ -119,9 +123,14 @@ DS <- raw_DS %>% inner_join(MH, by="USUBJID") %>%
 DS$survival_days <- as.Date(DS$DSSTDTC) - as.Date(DS$MHDTC) + 1
 table2 <- table2 %>% left_join(DS, by="USUBJID")
 # sort
-table2 <- table2 %>% arrange(USUBJID, 登録コード, epoch_order, ECTPT) %>% distinct()
+table2 <- table2 %>% arrange(USUBJID, 登録コード, epoch_order, ECTPT)
 output_table2 <- table2 %>% select(c(USUBJID, 登録コード, 施設名.ja., age, str_sex, name_en, epoch_ja, ECTRT, remission,
                                      relapse, days_of_remission, survival_days)) %>% distinct()
+# ------ output for validation ------
+write.csv(table1, "/Users/admin/Documents/GitHub/JALSG-CS-17-Molecular/output/validation_table1.csv",
+          fileEncoding="cp932")
+write.csv(output_table2, "/Users/admin/Documents/GitHub/JALSG-CS-17-Molecular/output/validation_table2.csv",
+          fileEncoding="cp932")
 # ------ output ------
 local({
   output_wb <- here("output", "CS-17-Molecular定期報告_YYYYMMDD.xlsx") %>% loadWorkbook(file=.)
