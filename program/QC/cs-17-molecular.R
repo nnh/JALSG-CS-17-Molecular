@@ -66,7 +66,7 @@ str_c(parent_path, "/input/ext/facilities.csv") %>% ReadCsvFiles("cp932")
 local({
   target_cs_17 <- get(kCS_17) %>% select(c(cs_17_subjid=症例登録番号, 登録コード))
   target_molecular <- get(kCS_17_Molecular) %>% select(c(molecular_subjid=症例登録番号, 登録コード))
-  # CS-17とmolecularを登録コードで結合
+  # Combine CS-17 and molecular with registration code
   molecular_registration <- target_molecular %>% inner_join(target_cs_17, by="登録コード")
   DM <- raw_DM
   DM$str_SITEID <- formatC(DM$SITEID, width=9, flag="0")
@@ -75,10 +75,10 @@ local({
     inner_join(molecular_registration, by=c("SUBJID"="cs_17_subjid"))
 })
 # ------ Table 1 ------
+# Sort by descending number of cases, ascending order of facility name
 table1 <- summarise(group_by(DM, 施設名.ja.), number_of_cases=n()) %>%
             arrange(desc(number_of_cases), 施設名.ja.)
 table1 <- rbind(table1, c("合計", sum(as.numeric(table1$number_of_cases))))
-# 症例数で降順に出力、同数の場合は、医療機関名で昇順
 # ------ Table 2 ------
 table2 <- raw_MH %>% select(c(USUBJID, MHDTC)) %>% filter(MHDTC != "") %>% inner_join(DM, by="USUBJID")
 table2$age <- apply(table2, 1, function(x){return(length(seq(as.Date(x["BRTHDTC"]), as.Date(x["MHDTC"]), "year")) - 1)})
@@ -88,7 +88,7 @@ local({
   df_diseases <- raw_diseases
   df_diseases$str_code <- as.character(df_diseases$code)
   table2 <<- MH %>% select(c(USUBJID, MHTERM)) %>% right_join(table2, by="USUBJID") %>%
-            left_join(df_diseases, by=c("MHTERM"="str_code"))
+              left_join(df_diseases, by=c("MHTERM"="str_code"))
 })
 epoch_order <- data.frame(c(1, 2, 3),
                           c("INDUCTION THERAPY", "CONSOLIDATION THERAPY/MAINTENANCE THERAPY", "SALVAGE THERAPY"),
@@ -109,13 +109,14 @@ table2$epoch_ja <- apply(table2, 1, function(x){
   }
   return(res)
 })
-table2 <- raw_RS %>% select(c(USUBJID, RS_EPOCH="EPOCH", RSORRES, RSDTC, RSSPID)) %>%
-            right_join(table2, by=c("USUBJID", "RS_EPOCH"="EPOCH"))
-table2$remission <- ifelse((table2$RS_EPOCH == "INDUCTION THERAPY") & (table2$RSORRES == "CR" | table2$RSORRES == "CRi"),
-                           "有", NA)
-table2 <- raw_CE %>% select(c(USUBJID, CEDTC)) %>% group_by(USUBJID) %>% filter(CEDTC == min(CEDTC)) %>%
-            right_join(table2, by="USUBJID")
-table2$remission <- ifelse(is.na(table2$remission), "無", "有")
+local({
+  temp_RS <- raw_RS %>% select(c(USUBJID, RS_EPOCH="EPOCH", RSORRES, RSDTC, RSSPID))
+  temp_CE <- raw_CE %>% select(c(USUBJID, CEDTC)) %>% group_by(USUBJID) %>% filter(CEDTC == min(CEDTC))
+  table2 <<- table2 %>% left_join(temp_RS, by=c("USUBJID", "EPOCH"="RS_EPOCH")) %>% left_join(temp_CE, by="USUBJID")
+})
+table2$remission <- ifelse(is.na(table2["EPOCH"]), NA,
+                           ifelse((table2["EPOCH"] == "INDUCTION THERAPY" &
+                                   (table2["RSORRES"] == "CR" | table2["RSORRES"] == "CRi")), "有", "無"))
 table2$relapse <- ifelse(table2$remission == "無", NA, ifelse(!is.na(table2$CEDTC), "有", "無"))
 table2$days_of_remission <- ifelse(table2$remission == "無", NA, as.Date(table2$CEDTC) - as.Date(table2$RSDTC) + 1)
 DS <- raw_DS %>% inner_join(MH, by="USUBJID") %>%
@@ -123,9 +124,10 @@ DS <- raw_DS %>% inner_join(MH, by="USUBJID") %>%
 DS$survival_days <- as.Date(DS$DSSTDTC) - as.Date(DS$MHDTC) + 1
 table2 <- table2 %>% left_join(DS, by="USUBJID")
 # sort
-table2 <- table2 %>% arrange(USUBJID, 登録コード, epoch_order, ECTPT)
-output_table2 <- table2 %>% select(c(USUBJID, 登録コード, 施設名.ja., age, str_sex, name_en, epoch_ja, ECTRT, remission,
-                                     relapse, days_of_remission, survival_days)) %>% distinct()
+table2 <- table2 %>% arrange(molecular_subjid, 登録コード, epoch_order, ECTPT)
+output_table2 <- table2 %>% ungroup %>%  # Ungroup data frames grouped by USUBJID
+                  select(c(USUBJID=molecular_subjid, 登録コード, 施設名.ja., age, str_sex, name_en, epoch_ja, ECTRT,
+                           remission, relapse, days_of_remission, survival_days)) %>% distinct()
 # ------ output for validation ------
 write.csv(table1, "/Users/admin/Documents/GitHub/JALSG-CS-17-Molecular/output/validation_table1.csv",
           fileEncoding="cp932")

@@ -13,13 +13,13 @@ nrow(test_dm)
 # 症例番号、登録コード
 # 症例番号	CS-17-Molecular_registration_yyyymmdd_mmss.csv.症例登録番号	"CS-17_registration_yyyymmdd_mmss.csv.登録コードが存在するもののみ出力
 #DM.SUBJIDとCS-17_registration_yyyymmdd_mmss.csv.症例登録番号をキーにマージする"
-df_reg <- select(CS_17, c(症例登録番号, 登録コード))
-df_mol <- select(CS_17_Molecular, c(症例登録番号, 登録コード))
-df_mol_reg <- right_join(df_mol, df_reg, by="登録コード")
-df_id <- right_join(df_mol_reg, raw_DM["SUBJID"], by=c("症例登録番号.y"="SUBJID"))
-df_id <- select(df_id, c(症例登録番号="症例登録番号.y", 登録コード))
-df_id$id <- formatC(df_id$症例登録番号, digits=3, flag="0")
-df_id$id <- paste0("CS-17-", df_id$id)
+#df_reg <- select(CS_17, c(症例登録番号, 登録コード))
+#df_mol <- select(CS_17_Molecular, c(症例登録番号, 登録コード))
+#df_mol_reg <- right_join(df_mol, df_reg, by="登録コード")
+#df_id <- right_join(df_mol_reg, raw_DM["SUBJID"], by=c("症例登録番号.y"="SUBJID"))
+#df_id <- select(df_id, c(症例登録番号="症例登録番号.y", 登録コード))
+#df_id$id <- formatC(df_id$症例登録番号, digits=3, flag="0")
+#df_id$id <- paste0("CS-17-", df_id$id)
 # 施設名
 df_shisetsumei <- left_join(raw_DM, df_shisetsu, by=c("SITEID"="code"))
 df_shisetsumei <- select(df_shisetsumei, c(USUBJID, 施設名.ja.))
@@ -41,9 +41,19 @@ df_byoumei <- select(df_byoumei, c(USUBJID, name_en))
 df_touyo_chiryo <- inner_join(raw_EC, raw_DM, by="USUBJID")
 df_touyo_chiryo <- select(df_touyo_chiryo, c(USUBJID, EPOCH, ECTPT, ECTRT))
 # 寛解もしくは安定の有無
+df_id <- select(raw_DM, c(USUBJID))
 df_kankai <- select(raw_RS, c(USUBJID, RSORRES, EPOCH, RSDTC))
+df_kankai <- left_join(df_id, df_kankai, c("USUBJID"="USUBJID"))
 df_kankai$umu <- "無"
+sv_id <- "0"
 for (i in 1:nrow(df_kankai)){
+  if (is.na(df_kankai[i, "EPOCH"])){
+    df_kankai[i, "umu"] <- NA
+    df_kankai[i, "EPOCH"] <- "."
+  }
+  if (df_kankai[i, "EPOCH"] == ""){
+    df_kankai[i, "umu"] <- NA
+  }
   if (df_kankai[i, "EPOCH"] == "INDUCTION THERAPY"){
     if (df_kankai[i, "RSORRES"] == "CR"){
       df_kankai[i, "umu"] <- "有"
@@ -52,7 +62,16 @@ for (i in 1:nrow(df_kankai)){
       df_kankai[i, "umu"] <- "有"
     }
   }
+  if (sv_id == df_kankai[i, "USUBJID"]){
+    sv_id <- df_kankai[i, "USUBJID"]
+    df_kankai[i, "USUBJID"] <- NA
+  } else {
+    sv_id <- df_kankai[i, "USUBJID"]
+  }
 }
+df_kankai <- subset(df_kankai, !is.na(USUBJID))
+write.csv(df_kankai, "/Users/admin/Documents/GitHub/JALSG-CS-17-Molecular/output/df_kankai.csv",
+          fileEncoding="cp932")
 # 再発もしくは増悪の有無*1
 df_kankai_ari <- filter(df_kankai, umu == "有")
 df_saihatsu <- left_join(df_kankai_ari, raw_CE, by="USUBJID")
