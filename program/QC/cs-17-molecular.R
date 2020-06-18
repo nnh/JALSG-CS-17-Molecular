@@ -1,6 +1,7 @@
 # CS-17-Molecular_interim
 # Mariko Ohtsuka
 # 2019/11/5 created
+# 2020/6/18 fixed
 # ------ Remove objects ------
 rm(list=ls())
 # ------ library ------
@@ -55,7 +56,7 @@ AddStyleTable2 <- function(output_wb, target_sheet_name, target_row, border_styl
 # ------ init ------
 parent_path <- "/Volumes/Stat/Trials/JAGSE/CS-17-Molecular_interim"
 # read csv
-file_list <- str_c(parent_path, "/input/rawdata") %>% list.files(full.names=T)
+file_list <- str_c(parent_path, "/input/rawdata") %>% list.files(full.names=T, pattern=".csv") # Exclude folders
 registration_list <- str_subset(file_list, pattern="([^/]+)(?=_[0-9]{6}_[0-9]{4}.csv)")
 exclude_registration_list <- file_list[-which(file_list %in% registration_list)]
 registration_list %>% ReadCsvFiles("cp932")
