@@ -1,7 +1,7 @@
 # CS-17-Molecular_interim
 # Mariko Ohtsuka
 # 2019/11/5 created
-# 2020/6/18 fixed
+# 2020/6/26 fixed
 # ------ Remove objects ------
 rm(list=ls())
 # ------ library ------
@@ -83,7 +83,7 @@ table1 <- rbind(table1, c("合計", sum(as.numeric(table1$number_of_cases))))
 # ------ Table 2 ------
 table2 <- raw_MH %>% select(c(USUBJID, MHDTC)) %>% filter(MHDTC != "") %>% inner_join(DM, by="USUBJID")
 table2$age <- apply(table2, 1, function(x){return(length(seq(as.Date(x["BRTHDTC"]), as.Date(x["MHDTC"]), "year")) - 1)})
-table2$str_sex <- ifelse(table2$SEX == 0, "M", "F")
+table2$str_sex <- table2$SEX
 MH <- raw_MH %>% select(c(USUBJID, MHTERM, MHCAT, MHDTC)) %>% filter(MHCAT=="PRIMARY DIAGNOSIS")
 local({
   df_diseases <- raw_diseases
