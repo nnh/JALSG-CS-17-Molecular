@@ -1,7 +1,7 @@
 # CS-17-Molecular_interim
 # Mariko Ohtsuka
 # 2019/11/5 created
-# 2020/6/26 fixed
+# 2021/6/28 fixed
 # ------ Remove objects ------
 rm(list=ls())
 # ------ library ------
@@ -66,13 +66,11 @@ str_c(parent_path, "/input/ext/facilities.csv") %>% ReadCsvFiles("cp932")
 # ------ common processing ------
 local({
   target_cs_17 <- get(kCS_17) %>% select(c(cs_17_subjid=症例登録番号, 登録コード))
-  target_molecular <- get(kCS_17_Molecular) %>% select(c(molecular_subjid=症例登録番号, 登録コード))
+  target_molecular <- get(kCS_17_Molecular) %>% select(c(molecular_subjid=症例登録番号, 登録コード, 施設名.ja.=シート作成時施設名))
   # Combine CS-17 and molecular with registration code
   molecular_registration <- target_molecular %>% inner_join(target_cs_17, by="登録コード")
   DM <- raw_DM
-  DM$str_SITEID <- formatC(DM$SITEID, width=9, flag="0")
-  DM <- DM %>% left_join(raw_facilities, by=c("str_SITEID"="施設コード"))
-  DM <<- DM[, c("SUBJID", "USUBJID", "BRTHDTC", "SEX", "施設名.ja.")] %>%
+  DM <<- DM[, c("SUBJID", "USUBJID", "BRTHDTC", "SEX")] %>%
     inner_join(molecular_registration, by=c("SUBJID"="cs_17_subjid"))
 })
 # ------ Table 1 ------
@@ -130,9 +128,9 @@ output_table2 <- table2 %>% ungroup %>%  # Ungroup data frames grouped by USUBJI
                   select(c(USUBJID=molecular_subjid, 登録コード, 施設名.ja., age, str_sex, name_en, epoch_ja, ECTRT,
                            remission, relapse, days_of_remission, survival_days)) %>% distinct()
 # ------ output for validation ------
-write.csv(table1, "/Users/admin/Documents/GitHub/JALSG-CS-17-Molecular/output/validation_table1.csv",
+write.csv(table1, "/Users/mariko/Documents/GitHub/JALSG-CS-17-Molecular/output/validation_table1.csv",
           fileEncoding="cp932")
-write.csv(output_table2, "/Users/admin/Documents/GitHub/JALSG-CS-17-Molecular/output/validation_table2.csv",
+write.csv(output_table2, "/Users/mariko/Documents/GitHub/JALSG-CS-17-Molecular/output/validation_table2.csv",
           fileEncoding="cp932")
 # ------ output ------
 local({
