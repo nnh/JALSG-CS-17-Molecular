@@ -1,7 +1,7 @@
 # CS-17-Molecular_interim
 # Mariko Ohtsuka
 # 2019/11/5 created
-# 2021/6/28 fixed
+# 2021/12/2 fixed
 # ------ Remove objects ------
 rm(list=ls())
 # ------ library ------
@@ -59,10 +59,10 @@ parent_path <- "/Volumes/Stat/Trials/JAGSE/CS-17-Molecular_interim"
 file_list <- str_c(parent_path, "/input/rawdata") %>% list.files(full.names=T, pattern=".csv") # Exclude directories
 registration_list <- str_subset(file_list, pattern="([^/]+)(?=_[0-9]{6}_[0-9]{4}.csv)")
 exclude_registration_list <- file_list[-which(file_list %in% registration_list)]
-registration_list %>% ReadCsvFiles("cp932")
+registration_list %>% ReadCsvFiles("utf-8")
 exclude_registration_list %>% ReadCsvFiles("utf-8")
 str_c(parent_path, "/input/ext/diseases.csv") %>% ReadCsvFiles("utf-8")
-str_c(parent_path, "/input/ext/facilities.csv") %>% ReadCsvFiles("cp932")
+str_c(parent_path, "/input/ext/facilities.csv") %>% ReadCsvFiles("utf-8")
 # ------ common processing ------
 local({
   target_cs_17 <- get(kCS_17) %>% select(c(cs_17_subjid=症例登録番号, 登録コード))
