@@ -70,7 +70,7 @@ for (i in 1:nrow(df_kankai)){
   }
 }
 df_kankai <- subset(df_kankai, !is.na(USUBJID))
-write.csv(df_kankai, "/Users/admin/Documents/GitHub/JALSG-CS-17-Molecular/output/df_kankai.csv",
+write.csv(df_kankai, "~/Documents/GitHub/JALSG-CS-17-Molecular/output/df_kankai.csv",
           fileEncoding="cp932")
 # 再発もしくは増悪の有無*1
 df_kankai_ari <- filter(df_kankai, umu == "有")
